@@ -113,7 +113,7 @@ class BentArmPenalty(JointPositionPenalty):
         scale_by_curriculum: bool = False,
     ) -> Self:
         return cls.create_from_names(
-            names=[
+            names=(
                 "dof_right_shoulder_pitch_03",
                 "dof_right_shoulder_roll_03",
                 "dof_right_shoulder_yaw_02",
@@ -124,7 +124,7 @@ class BentArmPenalty(JointPositionPenalty):
                 "dof_left_shoulder_yaw_02",
                 "dof_left_elbow_02",
                 "dof_left_wrist_00",
-            ],
+            ),
             physics_model=physics_model,
             scale=scale,
             scale_by_curriculum=scale_by_curriculum,
@@ -141,12 +141,12 @@ class StraightLegPenalty(JointPositionPenalty):
         scale_by_curriculum: bool = False,
     ) -> Self:
         return cls.create_from_names(
-            names=[
+            names=(
                 "dof_left_hip_roll_03",
                 "dof_left_hip_yaw_03",
                 "dof_right_hip_roll_03",
                 "dof_right_hip_yaw_03",
-            ],
+            ),
             physics_model=physics_model,
             scale=scale,
             scale_by_curriculum=scale_by_curriculum,
@@ -191,14 +191,12 @@ class Actor(eqx.Module):
         key, rnn_key = jax.random.split(key)
         rnn_keys = jax.random.split(rnn_key, depth)
         self.rnns = tuple(
-            [
-                eqx.nn.GRUCell(
-                    input_size=hidden_size,
-                    hidden_size=hidden_size,
-                    key=rnn_key,
-                )
-                for rnn_key in rnn_keys
-            ]
+            eqx.nn.GRUCell(
+                input_size=hidden_size,
+                hidden_size=hidden_size,
+                key=rnn_key,
+            )
+            for rnn_key in rnn_keys
         )
 
         # Project to output
@@ -270,14 +268,12 @@ class Critic(eqx.Module):
         key, rnn_key = jax.random.split(key)
         rnn_keys = jax.random.split(rnn_key, depth)
         self.rnns = tuple(
-            [
-                eqx.nn.GRUCell(
-                    input_size=hidden_size,
-                    hidden_size=hidden_size,
-                    key=rnn_key,
-                )
-                for rnn_key in rnn_keys
-            ]
+            eqx.nn.GRUCell(
+                input_size=hidden_size,
+                hidden_size=hidden_size,
+                key=rnn_key,
+            )
+            for rnn_key in rnn_keys
         )
 
         # Project to output
@@ -369,37 +365,26 @@ class HumanoidWalkingTask(ksim.PPOTask[HumanoidWalkingTaskConfig]):
             metadata=metadata,
         )
 
-    def get_physics_randomizers(self, physics_model: ksim.PhysicsModel) -> list[ksim.PhysicsRandomizer]:
-        return [
+    def get_physics_randomizers(self, physics_model: ksim.PhysicsModel) -> tuple[ksim.PhysicsRandomizer, ...]:
+        return (
             ksim.StaticFrictionRandomizer(),
             ksim.ArmatureRandomizer(),
             ksim.AllBodiesMassMultiplicationRandomizer(scale_lower=0.95, scale_upper=1.05),
             ksim.JointDampingRandomizer(),
             ksim.JointZeroPositionRandomizer(scale_lower=math.radians(-2), scale_upper=math.radians(2)),
-        ]
+        )
 
-    def get_events(self, physics_model: ksim.PhysicsModel) -> list[ksim.Event]:
-        return [
-            ksim.PushEvent(
-                x_force=1.0,
-                y_force=1.0,
-                z_force=0.3,
-                force_range=(0.5, 1.0),
-                x_angular_force=0.0,
-                y_angular_force=0.0,
-                z_angular_force=0.0,
-                interval_range=(0.5, 4.0),
-            ),
-        ]
+    def get_events(self, physics_model: ksim.PhysicsModel) -> tuple[ksim.Event, ...]:
+        return ()
 
-    def get_resets(self, physics_model: ksim.PhysicsModel) -> list[ksim.Reset]:
-        return [
+    def get_resets(self, physics_model: ksim.PhysicsModel) -> tuple[ksim.Reset, ...]:
+        return (
             ksim.RandomJointPositionReset.create(physics_model, {k: v for k, v in ZEROS}, scale=0.1),
             ksim.RandomJointVelocityReset(),
-        ]
+        )
 
-    def get_observations(self, physics_model: ksim.PhysicsModel) -> list[ksim.Observation]:
-        return [
+    def get_observations(self, physics_model: ksim.PhysicsModel) -> tuple[ksim.Observation, ...]:
+        return (
             ksim.TimestepObservation(),
             ksim.JointPositionObservation(noise=math.radians(2)),
             ksim.JointVelocityObservation(noise=math.radians(10)),
@@ -429,13 +414,13 @@ class HumanoidWalkingTask(ksim.PPOTask[HumanoidWalkingTaskConfig]):
                 sensor_name="imu_gyro",
                 noise=math.radians(10),
             ),
-        ]
+        )
 
-    def get_commands(self, physics_model: ksim.PhysicsModel) -> list[ksim.Command]:
-        return []
+    def get_commands(self, physics_model: ksim.PhysicsModel) -> tuple[ksim.Command, ...]:
+        return ()
 
-    def get_rewards(self, physics_model: ksim.PhysicsModel) -> list[ksim.Reward]:
-        return [
+    def get_rewards(self, physics_model: ksim.PhysicsModel) -> tuple[ksim.Reward, ...]:
+        return (
             # Standard rewards.
             ksim.NaiveForwardReward(clip_max=1.25, in_robot_frame=False, scale=3.0),
             ksim.NaiveForwardOrientationReward(scale=1.0),
@@ -454,13 +439,13 @@ class HumanoidWalkingTask(ksim.PPOTask[HumanoidWalkingTaskConfig]):
             # Bespoke rewards.
             BentArmPenalty.create_penalty(physics_model, scale=-0.1),
             StraightLegPenalty.create_penalty(physics_model, scale=-0.1),
-        ]
+        )
 
-    def get_terminations(self, physics_model: ksim.PhysicsModel) -> list[ksim.Termination]:
-        return [
+    def get_terminations(self, physics_model: ksim.PhysicsModel) -> tuple[ksim.Termination, ...]:
+        return (
             ksim.BadZTermination(unhealthy_z_lower=0.6, unhealthy_z_upper=1.2),
             ksim.FarFromOriginTermination(max_dist=10.0),
-        ]
+        )
 
     def get_curriculum(self, physics_model: ksim.PhysicsModel) -> ksim.Curriculum:
         return ksim.DistanceFromOriginCurriculum(
@@ -640,11 +625,11 @@ if __name__ == "__main__":
     HumanoidWalkingTask.launch(
         HumanoidWalkingTaskConfig(
             # Training parameters.
-            num_envs=2048,
-            batch_size=256,
+            num_envs=512,  # Reduced from 2048 to fit in GPU memory
+            batch_size=128,  # Reduced from 256 to fit in GPU memory
             num_passes=4,
             epochs_per_log_step=1,
-            rollout_length_seconds=8.0,
+            rollout_length_seconds=4.0,  # Reduced from 8.0 to fit in GPU memory
             global_grad_clip=2.0,
             # Simulation parameters.
             dt=0.002,
